@@ -80,7 +80,7 @@ tools_schema = [
     }
 ]
 
-async def tool_router(user_input, chat_history) -> str:
+async def tool_router(user_input, chat_history, chat_info) -> str:
     messages = [
         {"role": "system",
          "content": "Ты диспетчер функций. Твоя единственная задача — вызывать функции ТОЛЬКО если пользователь прямо просит об этом (найти видео, гифку, узнать время). Если пользователь просто общается (пишет 'привет', 'да', 'тоже', 'как дела') — НИЧЕГО НЕ ДЕЛАЙ, просто ответь текстом."},
@@ -100,12 +100,10 @@ async def tool_router(user_input, chat_history) -> str:
     if response_message.tool_calls:
         for tool_call in response_message.tool_calls:
             function_name = tool_call.function.name
-
             if function_name not in available_functions:
                 continue
 
             function_to_call = available_functions[function_name]
-
             try:
                 function_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
             except json.JSONDecodeError:
@@ -114,7 +112,8 @@ async def tool_router(user_input, chat_history) -> str:
             function_response = function_to_call(**function_args)
             collected_tool_data += f"[{function_name.upper()}_RESULT]: {function_response}\n"
 
-        return await rp_router(user_input, chat_history, tool_data=collected_tool_data)
+        # Передаем chat_info в RP-роутер!
+        return await rp_router(user_input, chat_history, chat_info, tool_data=collected_tool_data)
 
     else:
-        return await rp_router(user_input, chat_history, tool_data="")
+        return await rp_router(user_input, chat_history, chat_info, tool_data="")

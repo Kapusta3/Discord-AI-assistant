@@ -55,18 +55,22 @@ async def db_worker():
 async def get_chat_history(chat_id, limit=8):
     async with db_pool.acquire() as conn:
         rows = await conn.fetch("""
-            SELECT message_text, is_bot 
-            FROM messages 
-            WHERE chat_id = $1 
-            ORDER BY created_at DESC 
+            SELECT m.message_text, m.is_bot, u.user_name 
+            FROM messages m
+            JOIN users u ON m.user_id = u.user_id
+            WHERE m.chat_id = $1 
+            ORDER BY m.created_at DESC 
             LIMIT $2
         """, chat_id, limit)
 
     rows = list(reversed(rows))
     history = []
     for row in rows:
-        role = "assistant" if row['is_bot'] else "user"
-        history.append({"role": role, "content": row['message_text']})
+        if row['is_bot']:
+            history.append({"role": "assistant", "content": row['message_text']})
+        else:
+            history.append({"role": "user", "content": f"{row['user_name']}: {row['message_text']}"})
+
     return history
 
 
@@ -85,7 +89,13 @@ async def trigger_llm(chat_id, data):
 
     try:
         async with client.get_channel(chat_id).typing():
-            response = await analyzer(combined_text, chat_id, chat_history)
+
+            if data["chat_type"] == "DM":
+                chat_info = f"Вы общаетесь в Личных Сообщениях (DM) с пользователем {data['user_name']}."
+            else:
+                chat_info = f"Вы находитесь на сервере '{data['server_name']}', в канале '{data['chat_name']}'."
+
+            response = await analyzer(combined_text, chat_id, chat_history, chat_info)
 
         if response:
             channel = client.get_channel(chat_id)

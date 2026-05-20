@@ -7,8 +7,7 @@ client = AsyncOpenAI(
     api_key="any"
 )
 
-
-async def analyzer(combined_text, chat_id, chat_history) -> str:
+async def analyzer(combined_text, chat_id, chat_history, chat_info) -> str:
     if not combined_text.strip():
         return None
 
@@ -36,7 +35,7 @@ async def analyzer(combined_text, chat_id, chat_history) -> str:
     if "[IGNORE]" in response:
         return None
 
-    result = await tool_router(combined_text, chat_history)
+    result = await tool_router(combined_text, chat_history, chat_info)
     print(f"[gpt {chat_id}]: {result}")
 
     return result
