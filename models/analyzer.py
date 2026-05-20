@@ -7,7 +7,7 @@ init(autoreset=True)
 
 client = AsyncOpenAI(
     base_url="http://127.0.0.1:5614/v1",
-    api_key="any"
+    api_key="kapustiiik"
 )
 
 async def analyzer(combined_text, chat_id, chat_history, chat_info):
