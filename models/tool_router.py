@@ -115,4 +115,5 @@ async def tool_router(user_input, chat_history, chat_info) -> str:
         return await rp_router(user_input, chat_history, chat_info, tool_data=collected_tool_data)
 
     else:
+        print(f"[tool_router]: Тулзы не использовались")
         return await rp_router(user_input, chat_history, chat_info, tool_data="")

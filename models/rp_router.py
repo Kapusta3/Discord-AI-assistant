@@ -1,7 +1,7 @@
 import re
 import emoji
 from openai import AsyncOpenAI
-from config import *
+from config import MAX_ATTEMPTS, RP_PROMPT, Rp_llm_name
 from colorama import init, Fore
 
 init(autoreset=True)
@@ -11,8 +11,11 @@ client = AsyncOpenAI(
     api_key="kapustiiik"
 )
 
-async def rp_router(text, chat_history, chat_info, tool_data="") -> str:
+async def rp_router(text, chat_history, chat_info, tool_data="", attempt=0) -> str:
     dynamic_system_prompt = RP_PROMPT + f"\n\nОКРУЖЕНИЕ:\n{chat_info}"
+
+    if attempt > 0:
+        dynamic_system_prompt += "\n\nСИСТЕМНОЕ ПРЕДУПРЕЖДЕНИЕ: В ПРОШЛЫЙ РАЗ ТЫ СГЕНЕРИРОВАЛА ССЫЛКУ, ЭТО СТРОГО ЗАПРЕЩЕНО! ОТВЕТЬ ТЕКСТОМ БЕЗ ССЫЛОК."
 
     if tool_data != "":
         dynamic_system_prompt += f"\n\nСкрытая информация для ответа:\n{tool_data}"
@@ -42,9 +45,14 @@ async def rp_router(text, chat_history, chat_info, tool_data="") -> str:
 
     response = re.split(r'\n(?=[A-Za-z0-9_а-яА-ЯёЁ \-\[\]]+:)', response)[0].strip()
     response = re.split(r'\n(?=\[?\d{2}:\d{2}\]?.*)', response)[0].strip()
+    response = re.sub(r'\[.*?_RESULT\]:?\s*', '', response, flags=re.IGNORECASE)
 
     if tool_data == "" and re.search(r'https?://', response):
-        print(f"{Fore.RED}Обнаружена сгаллюцинированная ссылка")
-        response = re.sub(r'https?://\S+', '', response).strip()
+        if attempt < MAX_ATTEMPTS:
+            print(f"{Fore.RED}Обнаружена сгаллюцинированная ссылка")
+            return await rp_router(text, chat_history, chat_info, tool_data, attempt + 1)
+        else:
+            print(f"{Fore.RED}Превышен лимит перегенераций")
+            response = re.sub(r'https?://\S+', '', response).strip()
 
     return response

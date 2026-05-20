@@ -116,6 +116,7 @@ DB_URL = os.getenv("DB_URL")
 
 DELAY_SECONDS = 7
 MAX_BUFFER_SIZE = 5
+MAX_ATTEMPTS = 5
 
 Analyzer_llm_name = "sainemo-remix"
 Rp_llm_name = "sainemo-remix"
