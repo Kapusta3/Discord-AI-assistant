@@ -1,7 +1,10 @@
 from ddgs import DDGS
+from colorama import init, Fore
+
+init(autoreset=True)
 
 def web_search(query: str, max_results: int = 10) -> str:
-    print(f"[WEB_SEARCH Usage]: Searching info with query: {query}")
+    print(f"{Fore.YELLOW}[WEB_SEARCH Usage]: Searching info with query: {query}")
     with DDGS() as ddgs:
         results = ddgs.text(query, max_results=max_results)
 
@@ -14,5 +17,4 @@ def web_search(query: str, max_results: int = 10) -> str:
             output += f"Snippet: {r['body']}\n"
             output += f"URL: {r['href']}\n\n"
 
-        print(output)
         return output

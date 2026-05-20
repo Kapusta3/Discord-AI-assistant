@@ -2,6 +2,9 @@ import re
 import emoji
 from openai import AsyncOpenAI
 from config import *
+from colorama import init, Fore
+
+init(autoreset=True)
 
 client = AsyncOpenAI(
     base_url="http://127.0.0.1:5614/v1",
@@ -37,7 +40,7 @@ async def rp_router(text, chat_history, chat_info, tool_data="") -> str:
     response = emoji.replace_emoji(response, replace='')
 
     if tool_data == "" and re.search(r'https?://', response):
-        print("Обнаружена сгаллюцинированная ссылка!")
+        print(f"{Fore.RED}бнаружена сгаллюцинированная ссылка")
         response = re.sub(r'https?://\S+', '', response).strip()
 
     return response

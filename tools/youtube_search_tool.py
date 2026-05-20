@@ -1,10 +1,12 @@
 from youtube_search import YoutubeSearch
 import socket
+from colorama import init, Fore
 
+init(autoreset=True)
 
 def youtube_search(query: str) -> str:
     try:
-        print(f"[YOUTUBE_SEARCH Usage]: Searching video with query: {query}")
+        print(f"{Fore.YELLOW}[YOUTUBE_SEARCH Usage]: Searching video with query: {query}")
 
         socket.setdefaulttimeout(15)
 
@@ -17,7 +19,7 @@ def youtube_search(query: str) -> str:
         return f"https://youtube.com/watch?v={video_id}"
 
     except Exception as e:
-        print(f"[youtube error] {e}")
+        print(f"{Fore.RED}[youtube error] {e}")
         return "ничего не нашлось"
 
     finally:

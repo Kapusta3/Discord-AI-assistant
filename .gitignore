@@ -1,10 +1,11 @@
 .env
-
 .venv/
 venv/
 env/
 version-1/
 dataset/
+input.py
+start.bat
 
 __pycache__/
 *.pyc

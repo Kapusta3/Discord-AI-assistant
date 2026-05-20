@@ -1,6 +1,9 @@
 from openai import AsyncOpenAI
 from config import SYSTEM_PROMPT_CHECKER, Analyzer_llm_name
 from models.tool_router import tool_router
+from colorama import init, Fore, Style
+
+init(autoreset=True)
 
 client = AsyncOpenAI(
     base_url="http://127.0.0.1:5614/v1",
@@ -30,12 +33,12 @@ async def analyzer(combined_text, chat_id, chat_history, chat_info) -> str:
     )
 
     response = response_obj.choices[0].message.content
-    print(f"[analyzer {chat_id}]: {response}")
+    print(f"{Fore.BLUE}[analyzer {chat_id}]: {response}")
 
     if "[IGNORE]" in response:
         return None
 
     result = await tool_router(combined_text, chat_history, chat_info)
-    print(f"[gpt {chat_id}]: {result}")
+    print(f"{Fore.GREEN}[gpt {chat_id}]: {result}")
 
     return result

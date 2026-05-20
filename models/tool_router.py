@@ -4,7 +4,7 @@ from models.rp_router import rp_router
 from tools.get_current_time import get_current_time
 from tools.gif_search import gif_search
 from tools.web_search import web_search
-from tools.youtube_search import youtube_search
+from tools.youtube_search_tool import youtube_search
 from config import Tool_llm_name
 
 client = AsyncOpenAI(
@@ -47,7 +47,7 @@ tools_schema = [
     {
         "type": "function",
         "function": {
-            "name": "youtube_search",
+            "name": "youtube_search_tool",
             "description": "Искать видео или песню на YouTube.",
             "parameters": {
                 "type": "object",
@@ -83,7 +83,7 @@ tools_schema = [
 async def tool_router(user_input, chat_history, chat_info) -> str:
     messages = [
         {"role": "system",
-         "content": "Ты диспетчер функций. Твоя единственная задача — вызывать функции ТОЛЬКО если пользователь прямо просит об этом (найти видео, гифку, узнать время). Если пользователь просто общается (пишет 'привет', 'да', 'тоже', 'как дела') — НИЧЕГО НЕ ДЕЛАЙ, просто ответь текстом."},
+         "content": "Ты диспетчер функций. Твоя единственная задача - вызывать функции ТОЛЬКО если пользователь прямо просит об этом (найти видео, гифку, узнать время). Если пользователь просто общается (пишет 'привет', 'да', 'тоже', 'как дела') - НИЧЕГО НЕ ДЕЛАЙ, просто ответь текстом."},
         {"role": "user", "content": user_input}
     ]
 
@@ -112,7 +112,6 @@ async def tool_router(user_input, chat_history, chat_info) -> str:
             function_response = function_to_call(**function_args)
             collected_tool_data += f"[{function_name.upper()}_RESULT]: {function_response}\n"
 
-        # Передаем chat_info в RP-роутер!
         return await rp_router(user_input, chat_history, chat_info, tool_data=collected_tool_data)
 
     else:
