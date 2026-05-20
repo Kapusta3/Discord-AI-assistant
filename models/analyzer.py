@@ -1,20 +1,18 @@
 import re
-
 from openai import AsyncOpenAI
 from config import ANALYZER_PROMPT, Analyzer_llm_name
-from models.tool_router import tool_router
-from colorama import init, Fore, Style
+from colorama import init, Fore
 
 init(autoreset=True)
 
 client = AsyncOpenAI(
     base_url="http://127.0.0.1:5614/v1",
-    api_key="kapustiiik"
+    api_key="any"
 )
 
-async def analyzer(combined_text, chat_id, chat_history, chat_info) -> str:
+async def analyzer(combined_text, chat_id, chat_history, chat_info):
     if not combined_text.strip():
-        return None, 0.0
+        return False, 0.0
 
     lines = []
     for msg in chat_history:
@@ -46,9 +44,6 @@ async def analyzer(combined_text, chat_id, chat_history, chat_info) -> str:
             pass
 
     if "[IGNORE]" in response:
-        return None, ratio
+        return False, ratio
 
-    result = await tool_router(combined_text, chat_history, chat_info)
-    print(f"{Fore.GREEN}[gpt {chat_id}]: {result}")
-
-    return result, ratio
+    return True, ratio

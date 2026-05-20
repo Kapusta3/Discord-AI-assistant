@@ -5,6 +5,8 @@ from config import DS_Token, DB_URL, MAX_BUFFER_SIZE, DELAY_SECONDS
 from models.analyzer import analyzer
 from colorama import init, Fore
 
+from models.tool_router import tool_router
+
 init(autoreset=True)
 
 client = discord.Client(status=discord.Status.dnd)
@@ -98,20 +100,18 @@ async def trigger_llm(chat_id, data):
     chat_history = await get_chat_history(chat_id, limit=8)
 
     try:
-        async with client.get_channel(chat_id).typing():
+        async with db_pool.acquire() as conn:
+            rel_row = await conn.fetchrow("SELECT user_relationship FROM users WHERE user_id = $1", data["user_id"])
+            user_rel = round(rel_row["user_relationship"], 2) if rel_row else 0.0
 
-            async with db_pool.acquire() as conn:
-                rel_row = await conn.fetchrow("SELECT user_relationship FROM users WHERE user_id = $1", data["user_id"])
-                user_rel = round(rel_row["user_relationship"], 2) if rel_row else 0.0
+        if data["chat_type"] == "DM":
+            chat_info = f"Вы общаетесь в Личных Сообщениях (DM) с пользователем {data['user_name']}."
+        else:
+            chat_info = f"Вы находитесь на сервере '{data['server_name']}', в канале '{data['chat_name']}'."
 
-            if data["chat_type"] == "DM":
-                chat_info = f"Вы общаетесь в Личных Сообщениях (DM) с пользователем {data['user_name']}."
-            else:
-                chat_info = f"Вы находитесь на сервере '{data['server_name']}', в канале '{data['chat_name']}'."
+        chat_info += f"\nТвоё скрытое отношение к пользователю {data['user_name']}: {user_rel}"
 
-            chat_info += f"\nТвоё скрытое отношение к пользователю {data['user_name']}: {user_rel}"
-
-            response, ratio = await analyzer(combined_text, chat_id, chat_history, chat_info)
+        should_reply, ratio = await analyzer(combined_text, chat_id, chat_history, chat_info)
 
         if ratio != 0.0:
             await db_queue.put({
@@ -120,19 +120,23 @@ async def trigger_llm(chat_id, data):
                 "ratio": ratio
             })
 
-        if response:
+        if should_reply:
             channel = client.get_channel(chat_id)
-            sent_msg = await channel.send(response)
+            async with channel.typing():
+                response = await tool_router(combined_text, chat_history, chat_info)
 
-            bot_data = data.copy()
-            bot_data["message_id"] = sent_msg.id
-            bot_data["message_text"] = response
-            bot_data["user_id"] = client.user.id
-            bot_data["user_tag"] = client.user.name
-            bot_data["user_name"] = "Milka"
-            bot_data["is_bot"] = True
+            if response:
+                sent_msg = await channel.send(response)
 
-            await db_queue.put(bot_data)
+                bot_data = data.copy()
+                bot_data["message_id"] = sent_msg.id
+                bot_data["message_text"] = response
+                bot_data["user_id"] = client.user.id
+                bot_data["user_tag"] = client.user.name
+                bot_data["user_name"] = "Milka"
+                bot_data["is_bot"] = True
+
+                await db_queue.put(bot_data)
 
     except Exception as e:
         print(f"{Fore.RED}[LLM ERROR] {e}")
