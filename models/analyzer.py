@@ -1,5 +1,5 @@
 from openai import AsyncOpenAI
-from config import SYSTEM_PROMPT_CHECKER, Analyzer_llm_name
+from config import ANALYZER_PROMPT, Analyzer_llm_name
 from models.tool_router import tool_router
 from colorama import init, Fore, Style
 
@@ -22,7 +22,7 @@ async def analyzer(combined_text, chat_id, chat_history, chat_info) -> str:
     context = "\n".join(lines) + f"\nuser (новое): {combined_text}"
 
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT_CHECKER},
+        {"role": "system", "content": ANALYZER_PROMPT},
         {"role": "user", "content": context}
     ]
 

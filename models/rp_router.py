@@ -12,7 +12,7 @@ client = AsyncOpenAI(
 )
 
 async def rp_router(text, chat_history, chat_info, tool_data="") -> str:
-    dynamic_system_prompt = SYSTEM_PROMPT_RESULTER + f"\n\nОКРУЖЕНИЕ:\n{chat_info}"
+    dynamic_system_prompt = RP_PROMPT + f"\n\nОКРУЖЕНИЕ:\n{chat_info}"
 
     if tool_data != "":
         dynamic_system_prompt += f"\n\nСкрытая информация для ответа:\n{tool_data}"

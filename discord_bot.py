@@ -85,7 +85,7 @@ async def trigger_llm(chat_id, data):
         del chat_timers[chat_id]
 
     combined_text = "\n".join(texts_list)
-    print(f"\n[АГРЕГАТОР] Склеенный текст из {chat_id}:\n{combined_text}\n")
+    print(f"\n{data['user_name']} в {chat_id}:\n{combined_text}\n")
 
     chat_history = await get_chat_history(chat_id, limit=8)
 
@@ -114,14 +114,14 @@ async def trigger_llm(chat_id, data):
             await db_queue.put(bot_data)
 
     except Exception as e:
-        print(f"[LLM ERROR] {e}")
+        print(f"{Fore.RED}[LLM ERROR] {e}")
 
 
 @client.event
 async def on_ready():
     global db_pool
     db_pool = await asyncpg.create_pool(DB_URL)
-    print(f"Logged in as {client.user}. Database connected!")
+    print(f"Logged in as {client.user}, database connected.")
     asyncio.create_task(db_worker())
 
 
