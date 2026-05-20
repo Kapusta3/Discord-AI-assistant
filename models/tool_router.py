@@ -9,7 +9,7 @@ from config import Tool_llm_name
 
 client = AsyncOpenAI(
     base_url="http://127.0.0.1:5614/v1",
-    api_key="lm-studio"
+    api_key="kapustiiik"
 )
 
 available_functions = {

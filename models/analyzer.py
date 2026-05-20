@@ -1,3 +1,5 @@
+import re
+
 from openai import AsyncOpenAI
 from config import ANALYZER_PROMPT, Analyzer_llm_name
 from models.tool_router import tool_router
@@ -7,12 +9,12 @@ init(autoreset=True)
 
 client = AsyncOpenAI(
     base_url="http://127.0.0.1:5614/v1",
-    api_key="any"
+    api_key="kapustiiik"
 )
 
 async def analyzer(combined_text, chat_id, chat_history, chat_info) -> str:
     if not combined_text.strip():
-        return None
+        return None, 0.0
 
     lines = []
     for msg in chat_history:
@@ -35,10 +37,18 @@ async def analyzer(combined_text, chat_id, chat_history, chat_info) -> str:
     response = response_obj.choices[0].message.content
     print(f"{Fore.BLUE}[analyzer {chat_id}]: {response}")
 
+    ratio = 0.0
+    match = re.search(r'\[([+-]?\d+(?:\.\d+)?)\]', response)
+    if match:
+        try:
+            ratio = float(match.group(1))
+        except ValueError:
+            pass
+
     if "[IGNORE]" in response:
-        return None
+        return None, ratio
 
     result = await tool_router(combined_text, chat_history, chat_info)
     print(f"{Fore.GREEN}[gpt {chat_id}]: {result}")
 
-    return result
+    return result, ratio

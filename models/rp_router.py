@@ -8,7 +8,7 @@ init(autoreset=True)
 
 client = AsyncOpenAI(
     base_url="http://127.0.0.1:5614/v1",
-    api_key="any"
+    api_key="kapustiiik"
 )
 
 async def rp_router(text, chat_history, chat_info, tool_data="") -> str:

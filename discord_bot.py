@@ -19,34 +19,42 @@ async def db_worker():
         data = await db_queue.get()
         async with db_pool.acquire() as conn:
             try:
-                if data.get("server_name"):
+                if data.get("action") == "update_relationship":
                     await conn.execute("""
-                        INSERT INTO servers (server_id, server_name)
-                        VALUES ($1, $2)
-                        ON CONFLICT (server_id) DO NOTHING
-                    """, data["server_id"], data["server_name"])
+                        UPDATE users 
+                        SET user_relationship = user_relationship + $1 
+                        WHERE user_id = $2
+                    """, data["ratio"], data["user_id"])
 
-                await conn.execute("""
-                    INSERT INTO users (user_id, user_tag, user_name)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (user_id) DO NOTHING
-                """, data["user_id"], data["user_tag"], data["user_name"])
+                else:
+                    if data.get("server_name"):
+                        await conn.execute("""
+                            INSERT INTO servers (server_id, server_name)
+                            VALUES ($1, $2)
+                            ON CONFLICT (server_id) DO NOTHING
+                        """, data["server_id"], data["server_name"])
 
-                server_id = data["server_id"] if data.get("server_name") else None
-                await conn.execute("""
-                    INSERT INTO chats (chat_id, chat_name, chat_type, server_id)
-                    VALUES ($1, $2, $3, $4)
-                    ON CONFLICT (chat_id) DO NOTHING
-                """, data["chat_id"], data["chat_name"], data["chat_type"], server_id)
+                    await conn.execute("""
+                        INSERT INTO users (user_id, user_tag, user_name)
+                        VALUES ($1, $2, $3)
+                        ON CONFLICT (user_id) DO NOTHING
+                    """, data["user_id"], data["user_tag"], data["user_name"])
 
-                await conn.execute("""
-                    INSERT INTO messages (message_id, chat_id, user_id, message_text, is_bot)
-                    VALUES ($1, $2, $3, $4, $5)
-                    ON CONFLICT (message_id) DO NOTHING
-                """, data["message_id"], data["chat_id"], data["user_id"], data["message_text"],
-                                   data.get("is_bot", False))
+                    server_id = data["server_id"] if data.get("server_name") else None
+                    await conn.execute("""
+                        INSERT INTO chats (chat_id, chat_name, chat_type, server_id)
+                        VALUES ($1, $2, $3, $4)
+                        ON CONFLICT (chat_id) DO NOTHING
+                    """, data["chat_id"], data["chat_name"], data["chat_type"], server_id)
 
-                role = "BOT" if data.get("is_bot") else "USER"
+                    await conn.execute("""
+                        INSERT INTO messages (message_id, chat_id, user_id, message_text, is_bot)
+                        VALUES ($1, $2, $3, $4, $5)
+                        ON CONFLICT (message_id) DO NOTHING
+                    """, data["message_id"], data["chat_id"], data["user_id"], data["message_text"],
+                                       data.get("is_bot", False))
+
+                    role = "BOT" if data.get("is_bot") else "USER"
 
             except Exception as e:
                 print(f"{Fore.RED}[DB ERROR] {e}")
@@ -92,12 +100,25 @@ async def trigger_llm(chat_id, data):
     try:
         async with client.get_channel(chat_id).typing():
 
+            async with db_pool.acquire() as conn:
+                rel_row = await conn.fetchrow("SELECT user_relationship FROM users WHERE user_id = $1", data["user_id"])
+                user_rel = round(rel_row["user_relationship"], 2) if rel_row else 0.0
+
             if data["chat_type"] == "DM":
                 chat_info = f"Вы общаетесь в Личных Сообщениях (DM) с пользователем {data['user_name']}."
             else:
                 chat_info = f"Вы находитесь на сервере '{data['server_name']}', в канале '{data['chat_name']}'."
 
-            response = await analyzer(combined_text, chat_id, chat_history, chat_info)
+            chat_info += f"\nТвоё скрытое отношение к пользователю {data['user_name']}: {user_rel}"
+
+            response, ratio = await analyzer(combined_text, chat_id, chat_history, chat_info)
+
+        if ratio != 0.0:
+            await db_queue.put({
+                "action": "update_relationship",
+                "user_id": data["user_id"],
+                "ratio": ratio
+            })
 
         if response:
             channel = client.get_channel(chat_id)
@@ -140,9 +161,16 @@ async def on_message(message):
     chat_id = message.channel.id
 
     data = {
-        "user_id": message.author.id, "user_tag": message.author.name, "user_name": message.author.display_name,
-        "message_id": message.id, "message_text": message.content, "chat_id": chat_id,
-        "chat_name": chat_name, "chat_type": chat_type, "server_id": server_id, "server_name": server_name,
+        "user_id": message.author.id,
+        "user_tag": message.author.name,
+        "user_name": message.author.display_name,
+        "message_id": message.id,
+        "message_text": message.content,
+        "chat_id": chat_id,
+        "chat_name": chat_name,
+        "chat_type": chat_type,
+        "server_id": server_id,
+        "server_name": server_name,
         "is_bot": False
     }
 
