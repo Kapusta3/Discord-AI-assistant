@@ -126,6 +126,7 @@ async def trigger_llm(chat_id, data):
                 response = await tool_router(combined_text, chat_history, chat_info)
 
             if response:
+                print(f"{Fore.GREEN}[gpt {chat_id}]: {response}")
                 sent_msg = await channel.send(response)
 
                 bot_data = data.copy()
