@@ -36,11 +36,15 @@ async def rp_router(text, chat_history, chat_info, tool_data="") -> str:
         max_tokens=100
     )
 
-    response = response_obj.choices[0].message.content
-    response = emoji.replace_emoji(response, replace='')
+    response = emoji.replace_emoji(response_obj.choices[0].message.content, replace='')
+
+    response = re.sub(r'^(Милка|Milka|You|GPT|Assistant|Бот):\s*', '', response, flags=re.IGNORECASE).strip()
+
+    response = re.split(r'\n(?=[A-Za-z0-9_а-яА-ЯёЁ \-\[\]]+:)', response)[0].strip()
+    response = re.split(r'\n(?=\[?\d{2}:\d{2}\]?.*)', response)[0].strip()
 
     if tool_data == "" and re.search(r'https?://', response):
-        print(f"{Fore.RED}бнаружена сгаллюцинированная ссылка")
+        print(f"{Fore.RED}Обнаружена сгаллюцинированная ссылка")
         response = re.sub(r'https?://\S+', '', response).strip()
 
     return response

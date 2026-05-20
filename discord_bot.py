@@ -3,6 +3,9 @@ import discord
 import asyncpg
 from config import DS_Token, DB_URL, MAX_BUFFER_SIZE, DELAY_SECONDS
 from models.analyzer import analyzer
+from colorama import init, Fore
+
+init(autoreset=True)
 
 client = discord.Client(status=discord.Status.dnd)
 db_queue = asyncio.Queue()
@@ -44,10 +47,9 @@ async def db_worker():
                                    data.get("is_bot", False))
 
                 role = "BOT" if data.get("is_bot") else "USER"
-                print(f"[DB] Сообщение от {role} {data['user_name']} сохранено!")
 
             except Exception as e:
-                print(f"[DB ERROR] {e}")
+                print(f"{Fore.RED}[DB ERROR] {e}")
 
         db_queue.task_done()
 
