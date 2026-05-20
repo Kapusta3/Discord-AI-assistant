@@ -1,0 +1,16 @@
+.env
+
+.venv/
+venv/
+env/
+version-1/
+dataset/
+
+__pycache__/
+*.pyc
+
+logs.jsonl
+*.log
+
+.idea/
+.vscode/
