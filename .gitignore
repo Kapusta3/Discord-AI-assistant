@@ -6,7 +6,6 @@ version-1/
 dataset/
 input.py
 start.bat
-PROMPTS/
 
 __pycache__/
 *.pyc
