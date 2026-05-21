@@ -84,3 +84,6 @@ async def db_worker():
                 print(f"{Fore.RED}[DB Error]: {e}")
 
         db_queue.task_done()
+
+async def flush_queue():
+    await db_queue.join()

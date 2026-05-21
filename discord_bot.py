@@ -1,9 +1,10 @@
 import asyncio
-import discord
 import random
-from config import DS_Token, DB_URL, MAX_BUFFER_SIZE, DELAY_SECONDS
+import discord
 from colorama import init, Fore
 
+from config import DS_Token, DB_URL, MAX_BUFFER_SIZE, DELAY_SECONDS
+from schemas import AgentRequest
 import database
 from llm_pipeline import process_message_chain
 
@@ -34,13 +35,12 @@ async def sync_offline_messages(channel):
                 "is_bot": msg.author.id == client.user.id
             })
     except Exception as e:
-        print(f"{Fore.RED}[SYNC Error]: Не удалось синхронизировать сообщения: {e}")
+        print(f"{Fore.RED}[SYNC Error]: {e}")
 
 
-async def trigger_llm(chat_id, data):
-    channel = client.get_channel(chat_id)
+async def trigger_llm(chat_id, request: AgentRequest, channel):
     await sync_offline_messages(channel)
-    await asyncio.sleep(0.5)
+    await database.flush_queue()
 
     texts_list = unprocessed_texts.pop(chat_id, [])
     if not texts_list:
@@ -54,35 +54,40 @@ async def trigger_llm(chat_id, data):
 
     try:
         async with channel.typing():
-            response = await process_message_chain(combined_text, chat_id, data)
+            agent_response = await process_message_chain(combined_text, request)
 
-        if response:
-            print(f"{Fore.GREEN}[gpt in {chat_id}]: {response}")
+        if agent_response and agent_response.should_reply and agent_response.messages:
+            print(f"{Fore.GREEN}[gpt in {chat_id}]: {agent_response.messages}")
 
-            message_parts = [part.strip() for part in response.split('\n') if part.strip()]
-
-            for i, part in enumerate(message_parts):
+            for i, part in enumerate(agent_response.messages):
                 if i > 0:
-                    typing_speed = random.uniform(4.0, 7.0)
-                    delay = len(part) / typing_speed + 2
-
+                    delay = min(max(len(part) / random.uniform(4.0, 7.0) + 1.5, 2.0), 8.0)
                     async with channel.typing():
                         await asyncio.sleep(delay)
 
                 sent_msg = await channel.send(part)
 
-                bot_data = data.copy()
-                bot_data["message_id"] = sent_msg.id
-                bot_data["message_text"] = part
-                bot_data["user_id"] = client.user.id
-                bot_data["user_tag"] = client.user.name
-                bot_data["user_name"] = "Milka"
-                bot_data["is_bot"] = True
-
+                bot_data = request.to_dict()
+                bot_data.update({
+                    "message_id": sent_msg.id,
+                    "message_text": part,
+                    "user_id": client.user.id,
+                    "user_tag": client.user.name,
+                    "user_name": "Milka",
+                    "is_bot": True
+                })
                 await database.queue_message(bot_data)
 
     except Exception as e:
         print(f"{Fore.RED}[LLM Error]: {e}")
+
+# ну че, таймер говно
+async def delayed_trigger(chat_id, request, channel):
+    try:
+        await asyncio.sleep(DELAY_SECONDS)
+        await trigger_llm(chat_id, request, channel)
+    except asyncio.CancelledError:
+        pass
 
 
 @client.event
@@ -93,62 +98,53 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    if message.author == client.user:
+    if message.author == client.user or not message.content.strip():
         return
 
-    if not message.content.strip():
-        return
-
-    chat_type = None
-    chat_name = None
-    server_name = None
-    server_id = None
-
-    if message.guild is None:
-        if message.channel.type == discord.ChannelType.private:
-            chat_type = "DM"
-            chat_name = f"DM with {message.author}"
-        elif message.channel.type == discord.ChannelType.group:
-            chat_type = "Group"
-            users = [user.name for user in message.channel.recipients]
-            chat_name = f"Group with {', '.join(users)}"
+    # Записи для данных также в говно
+    if message.guild:
+        chat_type, chat_name = "Guild", message.channel.name
+        server_id, server_name = message.guild.id, message.guild.name
+        env_info = f"Публичный сервер '{server_name}', канал '{chat_name}'."
+    elif message.channel.type == discord.ChannelType.group:
+        chat_type = "Group"
+        chat_name = f"Group with {', '.join(u.name for u in message.channel.recipients)}"
+        server_id, server_name = None, None
+        env_info = f"Групповой чат (беседа). Название/участники: '{chat_name}'."
     else:
-        chat_type = "Guild"
-        chat_name = message.channel.name
-        server_name = message.guild.name
-        server_id = message.guild.id
+        chat_type, chat_name = "DM", f"DM with {message.author}"
+        server_id, server_name = None, None
+        env_info = f"Личные Сообщения (ЛС) наедине с пользователем {message.author.display_name}."
 
     chat_id = message.channel.id
 
-    data = {
-        "user_id": message.author.id, "user_tag": message.author.name, "user_name": message.author.display_name,
-        "message_id": message.id, "message_text": message.content, "chat_id": chat_id,
-        "chat_name": chat_name, "chat_type": chat_type, "server_id": server_id, "server_name": server_name,
-        "is_bot": False
-    }
+    request = AgentRequest(
+        user_id=message.author.id,
+        user_tag=message.author.name,
+        user_name=message.author.display_name,
+        message_id=message.id,
+        message_text=message.content,
+        chat_id=chat_id,
+        chat_name=chat_name,
+        chat_type=chat_type,
+        server_id=server_id,
+        server_name=server_name,
+        is_bot=False,
+        environment_info=env_info
+    )
 
-    await database.queue_message(data)
+    await database.queue_message(request.to_dict())
 
-    if chat_id not in unprocessed_texts:
-        unprocessed_texts[chat_id] = []
-
-    unprocessed_texts[chat_id].append(f"[Автор: {message.author.display_name}]\n{message.content}")
+    unprocessed_texts.setdefault(chat_id, []).append(f"[Автор: {message.author.display_name}]\n{message.content}")
 
     if chat_id in chat_timers:
         chat_timers[chat_id].cancel()
 
     if len(unprocessed_texts[chat_id]) >= MAX_BUFFER_SIZE:
         print(f"[Timer]: Буфер {chat_id} переполнен")
-        asyncio.create_task(trigger_llm(chat_id, data))
+        asyncio.create_task(trigger_llm(chat_id, request, message.channel))
     else:
-        async def wait_and_trigger():
-            try:
-                await asyncio.sleep(DELAY_SECONDS)
-                await trigger_llm(chat_id, data)
-            except asyncio.CancelledError:
-                pass
-
-        chat_timers[chat_id] = asyncio.create_task(wait_and_trigger())
+        chat_timers[chat_id] = asyncio.create_task(delayed_trigger(chat_id, request, message.channel))
 
 
 client.run(DS_Token)
