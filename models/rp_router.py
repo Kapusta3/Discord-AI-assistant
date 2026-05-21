@@ -20,8 +20,6 @@ async def rp_router(text, chat_history, chat_info, tool_data="", attempt=0) -> s
     if tool_data != "":
         dynamic_system_prompt += f"\n\nСкрытая информация для ответа:\n{tool_data}"
 
-    print(dynamic_system_prompt + " :: " + text)
-
     messages = [
         {"role": "system", "content": dynamic_system_prompt},
         {"role": "user", "content": "Привет"},

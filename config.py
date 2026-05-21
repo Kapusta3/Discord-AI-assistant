@@ -110,6 +110,13 @@ user: Слышь, ты, кусок говна тупого
 you: [-0.7] [ANSWER] [Серьезное оскорбление, нужно жестко ответить] OR [-0.7] [IGNORE] [Пользователь неадекватен, Милка кидает его в игнор]
 """
 
+TOOL_ROUTER_PROMPT = """
+Ты диспетчер функций. Твоя единственная задача - вызывать функции ТОЛЬКО если пользователь прямо просит об этом (найти видео, гифку, узнать время). 
+Если пользователь просто общается (пишет 'привет', 'да', 'тоже', 'как дела') - НИЧЕГО НЕ ДЕЛАЙ, просто ответь текстом.
+
+Если вместо ответа можно отправить ссылку на гиф, то так и поступай. Например когда нет желания отвечать текстом.
+"""
+
 Gif_Token = os.getenv("GIF_TOKEN")
 DS_Token = os.getenv("DS_TOKEN")
 DB_URL = os.getenv("DB_URL")
@@ -118,6 +125,8 @@ DELAY_SECONDS = 7
 MAX_BUFFER_SIZE = 5
 MAX_ATTEMPTS = 5
 
-Analyzer_llm_name = "sainemo-remix"
+Analyzer_llm_name = "qwen3.5-4b-uncensored-nonreasoning"
 Rp_llm_name = "sainemo-remix"
-Tool_llm_name = "qwen3.5-2b"
+Tool_llm_name = "qwen3.5-4b-uncensored-nonreasoning"
+
+Debug = False

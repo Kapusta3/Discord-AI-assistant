@@ -5,7 +5,7 @@ from tools.get_current_time import get_current_time
 from tools.gif_search import gif_search
 from tools.web_search import web_search
 from tools.youtube_search_tool import youtube_search
-from config import Tool_llm_name
+from config import Tool_llm_name, TOOL_ROUTER_PROMPT
 from colorama import init, Fore
 
 init(autoreset=True)
@@ -86,7 +86,7 @@ tools_schema = [
 async def tool_router(user_input, chat_history, chat_info) -> str:
     messages = [
         {"role": "system",
-         "content": "Ты диспетчер функций. Твоя единственная задача - вызывать функции ТОЛЬКО если пользователь прямо просит об этом (найти видео, гифку, узнать время). Если пользователь просто общается (пишет 'привет', 'да', 'тоже', 'как дела') - НИЧЕГО НЕ ДЕЛАЙ, просто ответь текстом."},
+         "content": TOOL_ROUTER_PROMPT},
         {"role": "user", "content": user_input}
     ]
 
