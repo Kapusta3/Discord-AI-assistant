@@ -6,7 +6,7 @@ init(autoreset=True)
 
 def youtube_search(query: str) -> str:
     try:
-        print(f"{Fore.YELLOW}[YOUTUBE_SEARCH Usage]: Searching video with query: {query}")
+        print(f"{Fore.CYAN}[YOUTUBE_SEARCH Usage]: Searching video with query: {query}")
 
         socket.setdefaulttimeout(15)
 

@@ -49,10 +49,10 @@ async def rp_router(text, chat_history, chat_info, tool_data="", attempt=0) -> s
 
     if tool_data == "" and re.search(r'https?://', response):
         if attempt < MAX_ATTEMPTS:
-            print(f"{Fore.RED}Обнаружена сгаллюцинированная ссылка")
+            print(f"{Fore.YELLOW}[Attention]: Обнаружена сгаллюцинированная ссылка")
             return await rp_router(text, chat_history, chat_info, tool_data, attempt + 1)
         else:
-            print(f"{Fore.RED}Превышен лимит перегенераций")
+            print(f"{Fore.YELLOW}[Attention]: Превышен лимит перегенераций")
             response = re.sub(r'https?://\S+', '', response).strip()
 
     return response

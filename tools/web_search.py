@@ -4,7 +4,7 @@ from colorama import init, Fore
 init(autoreset=True)
 
 def web_search(query: str, max_results: int = 10) -> str:
-    print(f"{Fore.YELLOW}[WEB_SEARCH Usage]: Searching info with query: {query}")
+    print(f"{Fore.CYAN}[WEB_SEARCH Usage]: Searching info with query: {query}")
     with DDGS() as ddgs:
         results = ddgs.text(query, max_results=max_results)
 

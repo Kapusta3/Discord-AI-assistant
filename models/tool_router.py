@@ -6,6 +6,9 @@ from tools.gif_search import gif_search
 from tools.web_search import web_search
 from tools.youtube_search_tool import youtube_search
 from config import Tool_llm_name
+from colorama import init, Fore
+
+init(autoreset=True)
 
 client = AsyncOpenAI(
     base_url="http://127.0.0.1:5614/v1",
@@ -115,5 +118,5 @@ async def tool_router(user_input, chat_history, chat_info) -> str:
         return await rp_router(user_input, chat_history, chat_info, tool_data=collected_tool_data)
 
     else:
-        print(f"[tool_router]: Тулзы не использовались")
+        print(f"{Fore.BLUE}[LOG]: Тулзы не использовались")
         return await rp_router(user_input, chat_history, chat_info, tool_data="")

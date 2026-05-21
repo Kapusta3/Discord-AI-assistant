@@ -33,7 +33,7 @@ async def analyzer(combined_text, chat_id, chat_history, chat_info):
     )
 
     response = response_obj.choices[0].message.content
-    print(f"{Fore.BLUE}[analyzer {chat_id}]: {response}")
+    print(f"{Fore.CYAN}[analyzer in {chat_id}]: {response}")
 
     ratio = 0.0
     match = re.search(r'\[([+-]?\d+(?:\.\d+)?)\]', response)

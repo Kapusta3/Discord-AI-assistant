@@ -10,7 +10,7 @@ def gif_search(query: str):
     url = "https://api.klipy.com/v2/search"
 
     query = f"{query}"
-    print(f"{Fore.YELLOW}[GIF_SEARCH Usage]: Searching gif with query: {query}")
+    print(f"{Fore.CYAN}[GIF_SEARCH Usage]: Searching gif with query: {query}")
 
     params = {
         "q": query,

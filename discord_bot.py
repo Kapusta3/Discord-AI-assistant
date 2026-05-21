@@ -59,7 +59,7 @@ async def db_worker():
                     role = "BOT" if data.get("is_bot") else "USER"
 
             except Exception as e:
-                print(f"{Fore.RED}[DB ERROR] {e}")
+                print(f"{Fore.RED}[DB Error]: {e}")
 
         db_queue.task_done()
 
@@ -95,7 +95,7 @@ async def trigger_llm(chat_id, data):
         del chat_timers[chat_id]
 
     combined_text = "\n".join(texts_list)
-    print(f"\n{data['user_name']} в {chat_id}:\n{combined_text}\n")
+    print(f"\n{data['user_name']} в {chat_id}:{combined_text}") #так красивее
 
     chat_history = await get_chat_history(chat_id, limit=8)
 
@@ -126,28 +126,41 @@ async def trigger_llm(chat_id, data):
                 response = await tool_router(combined_text, chat_history, chat_info)
 
             if response:
-                print(f"{Fore.GREEN}[gpt {chat_id}]: {response}")
-                sent_msg = await channel.send(response)
+                print(f"{Fore.GREEN}[gpt in {chat_id}]: {response}")
+                import random
 
-                bot_data = data.copy()
-                bot_data["message_id"] = sent_msg.id
-                bot_data["message_text"] = response
-                bot_data["user_id"] = client.user.id
-                bot_data["user_tag"] = client.user.name
-                bot_data["user_name"] = "Milka"
-                bot_data["is_bot"] = True
+                # реалистичный перенос строк
+                message_parts = [part.strip() for part in response.split('\n') if part.strip()]
 
-                await db_queue.put(bot_data)
+                for i, part in enumerate(message_parts):
+                    if i > 0:
+                        typing_speed = random.uniform(4.0, 7.0) #че с инета взял скорость среднюю, ну медленно
+                        delay = len(part) / typing_speed + 2
+
+                        async with channel.typing():
+                            await asyncio.sleep(delay)
+
+                    sent_msg = await channel.send(part)
+
+                    bot_data = data.copy()
+                    bot_data["message_id"] = sent_msg.id
+                    bot_data["message_text"] = part
+                    bot_data["user_id"] = client.user.id
+                    bot_data["user_tag"] = client.user.name
+                    bot_data["user_name"] = "Milka"
+                    bot_data["is_bot"] = True
+
+                    await db_queue.put(bot_data)
 
     except Exception as e:
-        print(f"{Fore.RED}[LLM ERROR] {e}")
+        print(f"{Fore.RED}[LLM Error]: {e}")
 
 
 @client.event
 async def on_ready():
     global db_pool
     db_pool = await asyncpg.create_pool(DB_URL)
-    print(f"Logged in as {client.user}, database connected.")
+    print(f"{Fore.BLUE}[LOG]: Logged in as {client.user}, database connected.")
     asyncio.create_task(db_worker())
 
 
@@ -190,7 +203,7 @@ async def on_message(message):
         chat_timers[chat_id].cancel()
 
     if len(unprocessed_texts[chat_id]) >= MAX_BUFFER_SIZE:
-        print(f"[ТАЙМЕР] Буфер {chat_id} переполнен")
+        print(f"[Timer]: Буфер {chat_id} переполнен")
         asyncio.create_task(trigger_llm(chat_id, data))
     else:
         async def wait_and_trigger():
