@@ -95,7 +95,7 @@ async def trigger_llm(chat_id, data):
         del chat_timers[chat_id]
 
     combined_text = "\n".join(texts_list)
-    print(f"\n{data['user_name']} в {chat_id}:{combined_text}") #так красивее
+    print(f"\nЧат {chat_id}:\n{combined_text}\n") #так красивее
 
     chat_history = await get_chat_history(chat_id, limit=8)
 
@@ -105,9 +105,11 @@ async def trigger_llm(chat_id, data):
             user_rel = round(rel_row["user_relationship"], 2) if rel_row else 0.0
 
         if data["chat_type"] == "DM":
-            chat_info = f"Вы общаетесь в Личных Сообщениях (DM) с пользователем {data['user_name']}."
+            chat_info = f"Вы общаетесь в Личных Сообщениях (ЛС) наедине с пользователем {data['user_name']}."
+        elif data["chat_type"] == "Group":
+            chat_info = f"Вы находитесь в групповом чате (беседе). Название беседы/участники: '{data['chat_name']}'."
         else:
-            chat_info = f"Вы находитесь на сервере '{data['server_name']}', в канале '{data['chat_name']}'."
+            chat_info = f"Вы находитесь на публичном сервере '{data['server_name']}', в канале '{data['chat_name']}'."
 
         chat_info += f"\nТвоё скрытое отношение к пользователю {data['user_name']}: {user_rel}"
 
