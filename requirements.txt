@@ -1,0 +1,9 @@
+asyncpg==0.31.0
+colorama==0.4.6
+ddgs==9.14.1
+discord.py-self==2.1.0
+emoji==2.15.0
+openai==2.37.0
+python-dotenv==1.2.2
+requests==2.34.2
+youtube-search==2.2.0
