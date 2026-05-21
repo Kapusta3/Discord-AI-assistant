@@ -1,92 +1,47 @@
 import asyncio
 import discord
-import asyncpg
+import random
 from config import DS_Token, DB_URL, MAX_BUFFER_SIZE, DELAY_SECONDS
-from models.analyzer import analyzer
 from colorama import init, Fore
 
-from models.tool_router import tool_router
+import database
+from llm_pipeline import process_message_chain
 
 init(autoreset=True)
 
 client = discord.Client(status=discord.Status.dnd)
-db_queue = asyncio.Queue()
-db_pool = None
-
 chat_timers = {}
 unprocessed_texts = {}
 
-async def db_worker():
-    while True:
-        data = await db_queue.get()
-        async with db_pool.acquire() as conn:
-            try:
-                if data.get("action") == "update_relationship":
-                    await conn.execute("""
-                        UPDATE users 
-                        SET user_relationship = user_relationship + $1 
-                        WHERE user_id = $2
-                    """, data["ratio"], data["user_id"])
 
-                else:
-                    if data.get("server_name"):
-                        await conn.execute("""
-                            INSERT INTO servers (server_id, server_name)
-                            VALUES ($1, $2)
-                            ON CONFLICT (server_id) DO NOTHING
-                        """, data["server_id"], data["server_name"])
+async def sync_offline_messages(channel):
+    try:
+        async for msg in channel.history(limit=10):
+            if not msg.content.strip():
+                continue
 
-                    await conn.execute("""
-                        INSERT INTO users (user_id, user_tag, user_name)
-                        VALUES ($1, $2, $3)
-                        ON CONFLICT (user_id) DO NOTHING
-                    """, data["user_id"], data["user_tag"], data["user_name"])
-
-                    server_id = data["server_id"] if data.get("server_name") else None
-                    await conn.execute("""
-                        INSERT INTO chats (chat_id, chat_name, chat_type, server_id)
-                        VALUES ($1, $2, $3, $4)
-                        ON CONFLICT (chat_id) DO NOTHING
-                    """, data["chat_id"], data["chat_name"], data["chat_type"], server_id)
-
-                    await conn.execute("""
-                        INSERT INTO messages (message_id, chat_id, user_id, message_text, is_bot)
-                        VALUES ($1, $2, $3, $4, $5)
-                        ON CONFLICT (message_id) DO NOTHING
-                    """, data["message_id"], data["chat_id"], data["user_id"], data["message_text"],
-                                       data.get("is_bot", False))
-
-                    role = "BOT" if data.get("is_bot") else "USER"
-
-            except Exception as e:
-                print(f"{Fore.RED}[DB Error]: {e}")
-
-        db_queue.task_done()
-
-
-async def get_chat_history(chat_id, limit=8):
-    async with db_pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT m.message_text, m.is_bot, u.user_name 
-            FROM messages m
-            JOIN users u ON m.user_id = u.user_id
-            WHERE m.chat_id = $1 
-            ORDER BY m.created_at DESC 
-            LIMIT $2
-        """, chat_id, limit)
-
-    rows = list(reversed(rows))
-    history = []
-    for row in rows:
-        if row['is_bot']:
-            history.append({"role": "assistant", "content": row['message_text']})
-        else:
-            history.append({"role": "user", "content": f"{row['user_name']}: {row['message_text']}"})
-
-    return history
+            await database.queue_message({
+                "user_id": msg.author.id,
+                "user_tag": msg.author.name,
+                "user_name": msg.author.display_name,
+                "message_id": msg.id,
+                "message_text": msg.content,
+                "chat_id": channel.id,
+                "chat_name": channel.name if msg.guild else f"DM with {msg.author}",
+                "chat_type": "Guild" if msg.guild else "DM",
+                "server_id": msg.guild.id if msg.guild else None,
+                "server_name": msg.guild.name if msg.guild else None,
+                "is_bot": msg.author.id == client.user.id
+            })
+    except Exception as e:
+        print(f"{Fore.RED}[SYNC Error]: Не удалось синхронизировать сообщения: {e}")
 
 
 async def trigger_llm(chat_id, data):
+    channel = client.get_channel(chat_id)
+    await sync_offline_messages(channel)
+    await asyncio.sleep(0.5)
+
     texts_list = unprocessed_texts.pop(chat_id, [])
     if not texts_list:
         return
@@ -95,64 +50,36 @@ async def trigger_llm(chat_id, data):
         del chat_timers[chat_id]
 
     combined_text = "\n".join(texts_list)
-    print(f"\nЧат {chat_id}:\n{combined_text}\n") #так красивее
-
-    chat_history = await get_chat_history(chat_id, limit=8)
+    print(f"\nЧат {chat_id}:\n{combined_text}\n")
 
     try:
-        async with db_pool.acquire() as conn:
-            rel_row = await conn.fetchrow("SELECT user_relationship FROM users WHERE user_id = $1", data["user_id"])
-            user_rel = round(rel_row["user_relationship"], 2) if rel_row else 0.0
+        async with channel.typing():
+            response = await process_message_chain(combined_text, chat_id, data)
 
-        if data["chat_type"] == "DM":
-            chat_info = f"Вы общаетесь в Личных Сообщениях (ЛС) наедине с пользователем {data['user_name']}."
-        elif data["chat_type"] == "Group":
-            chat_info = f"Вы находитесь в групповом чате (беседе). Название беседы/участники: '{data['chat_name']}'."
-        else:
-            chat_info = f"Вы находитесь на публичном сервере '{data['server_name']}', в канале '{data['chat_name']}'."
+        if response:
+            print(f"{Fore.GREEN}[gpt in {chat_id}]: {response}")
 
-        chat_info += f"\nТвоё скрытое отношение к пользователю {data['user_name']}: {user_rel}"
+            message_parts = [part.strip() for part in response.split('\n') if part.strip()]
 
-        should_reply, ratio = await analyzer(combined_text, chat_id, chat_history, chat_info)
+            for i, part in enumerate(message_parts):
+                if i > 0:
+                    typing_speed = random.uniform(4.0, 7.0)
+                    delay = len(part) / typing_speed + 2
 
-        if ratio != 0.0:
-            await db_queue.put({
-                "action": "update_relationship",
-                "user_id": data["user_id"],
-                "ratio": ratio
-            })
+                    async with channel.typing():
+                        await asyncio.sleep(delay)
 
-        if should_reply:
-            channel = client.get_channel(chat_id)
-            async with channel.typing():
-                response = await tool_router(combined_text, chat_history, chat_info)
+                sent_msg = await channel.send(part)
 
-            if response:
-                print(f"{Fore.GREEN}[gpt in {chat_id}]: {response}")
-                import random
+                bot_data = data.copy()
+                bot_data["message_id"] = sent_msg.id
+                bot_data["message_text"] = part
+                bot_data["user_id"] = client.user.id
+                bot_data["user_tag"] = client.user.name
+                bot_data["user_name"] = "Milka"
+                bot_data["is_bot"] = True
 
-                # реалистичный перенос строк
-                message_parts = [part.strip() for part in response.split('\n') if part.strip()]
-
-                for i, part in enumerate(message_parts):
-                    if i > 0:
-                        typing_speed = random.uniform(4.0, 7.0) #че с инета взял скорость среднюю, ну медленно
-                        delay = len(part) / typing_speed + 2
-
-                        async with channel.typing():
-                            await asyncio.sleep(delay)
-
-                    sent_msg = await channel.send(part)
-
-                    bot_data = data.copy()
-                    bot_data["message_id"] = sent_msg.id
-                    bot_data["message_text"] = part
-                    bot_data["user_id"] = client.user.id
-                    bot_data["user_tag"] = client.user.name
-                    bot_data["user_name"] = "Milka"
-                    bot_data["is_bot"] = True
-
-                    await db_queue.put(bot_data)
+                await database.queue_message(bot_data)
 
     except Exception as e:
         print(f"{Fore.RED}[LLM Error]: {e}")
@@ -160,10 +87,8 @@ async def trigger_llm(chat_id, data):
 
 @client.event
 async def on_ready():
-    global db_pool
-    db_pool = await asyncpg.create_pool(DB_URL)
+    await database.init_db(DB_URL)
     print(f"{Fore.BLUE}[LOG]: Logged in as {client.user}, database connected.")
-    asyncio.create_task(db_worker())
 
 
 @client.event
@@ -174,32 +99,40 @@ async def on_message(message):
     if not message.content.strip():
         return
 
-    chat_type = "Guild" if message.guild else "DM"
-    chat_name = message.channel.name if message.guild else f"DM with {message.author}"
-    server_name = message.guild.name if message.guild else None
-    server_id = message.guild.id if message.guild else None
+    chat_type = None
+    chat_name = None
+    server_name = None
+    server_id = None
+
+    if message.guild is None:
+        if message.channel.type == discord.ChannelType.private:
+            chat_type = "DM"
+            chat_name = f"DM with {message.author}"
+        elif message.channel.type == discord.ChannelType.group:
+            chat_type = "Group"
+            users = [user.name for user in message.channel.recipients]
+            chat_name = f"Group with {', '.join(users)}"
+    else:
+        chat_type = "Guild"
+        chat_name = message.channel.name
+        server_name = message.guild.name
+        server_id = message.guild.id
+
     chat_id = message.channel.id
 
     data = {
-        "user_id": message.author.id,
-        "user_tag": message.author.name,
-        "user_name": message.author.display_name,
-        "message_id": message.id,
-        "message_text": message.content,
-        "chat_id": chat_id,
-        "chat_name": chat_name,
-        "chat_type": chat_type,
-        "server_id": server_id,
-        "server_name": server_name,
+        "user_id": message.author.id, "user_tag": message.author.name, "user_name": message.author.display_name,
+        "message_id": message.id, "message_text": message.content, "chat_id": chat_id,
+        "chat_name": chat_name, "chat_type": chat_type, "server_id": server_id, "server_name": server_name,
         "is_bot": False
     }
 
-    await db_queue.put(data)
+    await database.queue_message(data)
 
     if chat_id not in unprocessed_texts:
         unprocessed_texts[chat_id] = []
 
-    unprocessed_texts[chat_id].append(f"{message.author.display_name}: {message.content}")
+    unprocessed_texts[chat_id].append(f"[Автор: {message.author.display_name}]\n{message.content}")
 
     if chat_id in chat_timers:
         chat_timers[chat_id].cancel()
