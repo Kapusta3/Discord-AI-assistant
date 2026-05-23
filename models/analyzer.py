@@ -1,6 +1,6 @@
 import re
 from openai import AsyncOpenAI
-from config import ANALYZER_PROMPT, Analyzer_llm_name
+from config import ANALYZER_PROMPT, Analyzer_llm_name, Debug
 from colorama import init, Fore
 
 init(autoreset=True)
@@ -29,11 +29,13 @@ async def analyzer(combined_text, chat_id, chat_history, chat_info):
     response_obj = await client.chat.completions.create(
         model=Analyzer_llm_name,
         messages=messages,
-        max_tokens=40
+        max_tokens=80
     )
 
     response = response_obj.choices[0].message.content
-    print(f"{Fore.CYAN}[analyzer in {chat_id}]: {response}")
+
+    if Debug:
+        print(f"{Fore.CYAN}[analyzer in {chat_id}]: {response}")
 
     ratio = 0.0
     match = re.search(r'\[([+-]?\d+(?:\.\d+)?)\]', response)

@@ -1,20 +1,20 @@
 import requests
-import config
+from config import Gif_Token, Debug
 from colorama import init, Fore
 
 init(autoreset=True)
-
-API_KEY = config.Gif_Token
 
 def gif_search(query: str):
     url = "https://api.klipy.com/v2/search"
 
     query = f"{query}"
-    print(f"{Fore.CYAN}[GIF_SEARCH Usage]: Searching gif with query: {query}")
+
+    if Debug:
+        print(f"{Fore.CYAN}[GIF_SEARCH Usage]: Searching gif with query: {query}")
 
     params = {
         "q": query,
-        "key": API_KEY,
+        "key": Gif_Token,
         "limit": 1
     }
 

@@ -1,7 +1,7 @@
 import re
 import emoji
 from openai import AsyncOpenAI
-from config import MAX_ATTEMPTS, RP_PROMPT, Rp_llm_name
+from config import MAX_ATTEMPTS, RP_PROMPT, Rp_llm_name, Debug
 from colorama import init, Fore
 
 init(autoreset=True)
@@ -35,8 +35,7 @@ async def rp_router(text, chat_history, chat_info, tool_data="", attempt=0) -> s
 
     response_obj = await client.chat.completions.create(
         model=Rp_llm_name,
-        messages=messages,
-        max_tokens=100
+        messages=messages
     )
 
     response = emoji.replace_emoji(response_obj.choices[0].message.content, replace='')
@@ -49,10 +48,12 @@ async def rp_router(text, chat_history, chat_info, tool_data="", attempt=0) -> s
 
     if tool_data == "" and re.search(r'https?://', response):
         if attempt < MAX_ATTEMPTS:
-            print(f"{Fore.YELLOW}[Attention]: Обнаружена сгаллюцинированная ссылка")
+            if Debug:
+                print(f"{Fore.YELLOW}[Attention]: Обнаружена сгаллюцинированная ссылка")
             return await rp_router(text, chat_history, chat_info, tool_data, attempt + 1)
         else:
-            print(f"{Fore.YELLOW}[Attention]: Превышен лимит перегенераций")
+            if Debug:
+                print(f"{Fore.YELLOW}[Attention]: Превышен лимит перегенераций")
             response = re.sub(r'https?://\S+', '', response).strip()
 
     return response

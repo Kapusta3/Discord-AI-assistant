@@ -3,7 +3,7 @@ import random
 import discord
 from colorama import init, Fore
 
-from config import DS_Token, DB_URL, MAX_BUFFER_SIZE, DELAY_SECONDS
+from config import DS_Token, DB_URL, MAX_BUFFER_SIZE, DELAY_SECONDS, Debug
 from schemas import AgentRequest
 import database
 from llm_pipeline import process_message_chain
@@ -94,12 +94,24 @@ async def delayed_trigger(chat_id, request, channel):
 async def on_ready():
     await database.init_db(DB_URL)
     print(f"{Fore.BLUE}[LOG]: Logged in as {client.user}, database connected.")
+    print(f"{Fore.BLUE}[LOG]: Debug mode - {Debug}")
 
 
 @client.event
 async def on_message(message):
-    if message.author == client.user or not message.content.strip():
+    if message.author == client.user or (not message.content.strip() and not message.attachments):
         return
+
+    # работа с медиа
+    media_urls = [a.url for a in message.attachments]
+    for word in message.content.split():
+        if word.startswith("http") and any(e in word for e in [".jpg", ".jpeg", ".png", ".gif", ".mp4", ".webp"]):
+            media_urls.append(word)
+
+    text = message.content
+
+    if media_urls:
+        text += "\n" + "\n".join(f"[MEDIA]: {url}" for url in media_urls)
 
     # Записи для данных также в говно
     if message.guild:
@@ -123,7 +135,7 @@ async def on_message(message):
         user_tag=message.author.name,
         user_name=message.author.display_name,
         message_id=message.id,
-        message_text=message.content,
+        message_text=text,
         chat_id=chat_id,
         chat_name=chat_name,
         chat_type=chat_type,
@@ -135,7 +147,7 @@ async def on_message(message):
 
     await database.queue_message(request.to_dict())
 
-    unprocessed_texts.setdefault(chat_id, []).append(f"[Автор: {message.author.display_name}]\n{message.content}")
+    unprocessed_texts.setdefault(chat_id, []).append(f"[Автор: {message.author.display_name}]\n{text}")
 
     if chat_id in chat_timers:
         chat_timers[chat_id].cancel()
