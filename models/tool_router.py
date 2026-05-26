@@ -104,10 +104,16 @@ tools_schema = [
 
 async def tool_router(user_input, chat_history, chat_info) -> str:
     collected_tool_data = ""
+    processed_urls = set()
 
     for line in user_input.splitlines():
         if line.startswith("[MEDIA]:"):
             url = line.replace("[MEDIA]:", "").strip()
+
+            if url in processed_urls:
+                continue
+            processed_urls.add(url)
+
             url = await refresh_discord_url(url)
             frames = media_tool(url)
             if not frames:

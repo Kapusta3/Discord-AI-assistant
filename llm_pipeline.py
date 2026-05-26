@@ -13,6 +13,17 @@ async def process_message_chain(combined_text: str, request: AgentRequest) -> Ag
     chat_info += f"\nТвоё скрытое отношение к пользователю {request.user_name}: {user_rel}"
     chat_info += f"\nТекущее системное время: {current_time}"
 
+    consecutive = 0
+    for msg in reversed(chat_history):
+        if msg["role"] == "assistant":
+            break
+        if msg.get("user_id") == request.user_id:
+            consecutive += 1
+
+    # если 3+ подряд без ответа — игнорируем
+    if consecutive >= 3:
+        return AgentResponse(should_reply=False, messages=[])
+
     should_reply, ratio = await analyzer(combined_text, request.chat_id, chat_history, chat_info)
 
     if ratio != 0.0:
@@ -22,6 +33,7 @@ async def process_message_chain(combined_text: str, request: AgentRequest) -> Ag
         response_text = await tool_router(combined_text, chat_history, chat_info)
         if response_text:
             message_parts = [part.strip() for part in response_text.split('\n') if part.strip()]
+            message_parts = message_parts[:3]
             return AgentResponse(should_reply=True, messages=message_parts)
 
     return AgentResponse(should_reply=False, messages=[])

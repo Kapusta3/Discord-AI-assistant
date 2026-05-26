@@ -46,14 +46,18 @@ async def rp_router(text, chat_history, chat_info, tool_data="", attempt=0) -> s
     response = re.split(r'\n(?=\[?\d{2}:\d{2}\]?.*)', response)[0].strip()
     response = re.sub(r'\[.*?_RESULT\]:?\s*', '', response, flags=re.IGNORECASE)
 
-    if tool_data == "" and re.search(r'https?://', response):
-        if attempt < MAX_ATTEMPTS:
-            if Debug:
-                print(f"{Fore.YELLOW}[Attention]: Обнаружена сгаллюцинированная ссылка")
-            return await rp_router(text, chat_history, chat_info, tool_data, attempt + 1)
-        else:
-            if Debug:
-                print(f"{Fore.YELLOW}[Attention]: Превышен лимит перегенераций")
-            response = re.sub(r'https?://\S+', '', response).strip()
+    if re.search(r'https?://', response):
+        urls_in_response = re.findall(r'https?://\S+', response)
+        hallucinated = any(url not in tool_data for url in urls_in_response)
+
+        if hallucinated:
+            if attempt < MAX_ATTEMPTS:
+                if Debug:
+                    print(f"{Fore.YELLOW}[Attention]: Обнаружена сгаллюцинированная ссылка")
+                return await rp_router(text, chat_history, chat_info, tool_data, attempt + 1)
+            else:
+                if Debug:
+                    print(f"{Fore.YELLOW}[Attention]: Превышен лимит перегенераций")
+                response = re.sub(r'https?://\S+', '', response).strip()
 
     return response

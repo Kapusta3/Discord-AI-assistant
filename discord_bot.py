@@ -39,7 +39,6 @@ async def sync_offline_messages(channel):
 
 
 async def trigger_llm(chat_id, request: AgentRequest, channel):
-    await sync_offline_messages(channel)
     await database.flush_queue()
 
     texts_list = unprocessed_texts.pop(chat_id, [])
@@ -92,7 +91,19 @@ async def delayed_trigger(chat_id, request, channel):
 
 @client.event
 async def on_ready():
-    await database.init_db(DB_URL)
+    try:
+        await database.init_db(DB_URL)
+    except Exception as e:
+        print(f"{Fore.RED}[DB Error]: {e}")
+        return
+
+    for guild in client.guilds:
+        for channel in guild.text_channels:
+            try:
+                await sync_offline_messages(channel)
+            except Exception as e:
+                print(f"{Fore.RED}[SYNC Error]: {e}")
+
     print(f"{Fore.BLUE}[LOG]: Logged in as {client.user}, database connected.")
     print(f"{Fore.BLUE}[LOG]: Debug mode - {Debug}")
 
@@ -105,7 +116,8 @@ async def on_message(message):
     # работа с медиа
     media_urls = [a.url for a in message.attachments]
     for word in message.content.split():
-        if word.startswith("http") and any(e in word for e in [".jpg", ".jpeg", ".png", ".gif", ".mp4", ".webp"]):
+        if word.startswith("http") and (
+                any(e in word for e in [".jpg", ".jpeg", ".png", ".gif", ".mp4", ".webp"]) or "tenor.com/view/" in word):
             media_urls.append(word)
 
     text = message.content
