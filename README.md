@@ -1,6 +1,6 @@
 <div align="center">
 
-![Discord AI Assistant](git-reame.png)
+![Discord AI Assistant](img/git-reame.png)
 
 **A self-hosted Discord AI agent with memory, vision, and tool use.**
 
